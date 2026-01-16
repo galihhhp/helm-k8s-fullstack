@@ -25,3 +25,32 @@ frontend:
     FEATURE_EDIT_TASK: "true"
     FEATURE_DELETE_TASK: "true"
     VITE_APP_VERSION: "2.0.0"
+
+backend:
+  enabled: true
+  replicaCount: 2
+  name: "backend"
+  labels:
+    app: "backend"
+    tier: "ui"
+    app.kubernetes.io/name: "backend"
+    app.kubernetes.io/instance: "backend"
+    app.kubernetes.io/component: "backend"
+  image:
+    name: "galihhhp/task-services"
+    tag: "2.0.0"
+    containerPort: 3000
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  env:
+    NODE_ENV: "development"
+    DB_HOST: "postgres-service"
+    DB_PORT: "5432"
+    DB_NAME: "postgres"
+    DB_COLUMN_ID: "id"
+    DB_COLUMN_TASK: "task"
+    FEATURE_EDIT_TASK: "true"
+    FEATURE_DELETE_TASK: "true"
+    FEATURE_REDIS_CACHE: "false"

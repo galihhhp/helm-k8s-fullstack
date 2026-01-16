@@ -1,0 +1,5 @@
+{{- range $component, $values := .Values }}
+{{- if and (ne $component "namespace") (ne $component "environment") (kindIs "map" $values) (hasKey $values "enabled") }}
+{{- include "helm-k8s-fullstack.component.service" (dict "component" $component "values" $values "Values" $.Values) }}
+{{- end }}
+{{- end }}
