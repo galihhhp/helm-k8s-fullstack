@@ -1,0 +1,1 @@
+helm uninstall fullstack-app --namespace development

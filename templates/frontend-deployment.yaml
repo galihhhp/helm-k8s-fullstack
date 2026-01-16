@@ -1,0 +1,35 @@
+{{- if .Values.frontend.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ required "frontend.name is required" .Values.frontend.name }}
+  labels:
+    {{- range $key, $value := .Values.frontend.labels }}
+      {{ $key }}: {{ $value }}
+    {{- end }}
+  namespace: {{ required "namespace is required" .Values.namespace }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- range $key, $value := .Values.frontend.labels }}
+        {{ $key }}: {{ $value }}
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- range $key, $value := .Values.frontend.labels }}
+          {{ $key }}: {{ $value }}
+        {{- end }}
+    spec:
+      containers:
+      - name: {{ required "frontend.name is required" .Values.frontend.name }}
+        image: {{ required "frontend.image.name is required" .Values.frontend.image.name }}:{{ required "frontend.image.tag is required" .Values.frontend.image.tag }}
+        ports:
+          - containerPort: {{ required "frontend.image.containerPort is required" .Values.frontend.image.containerPort }}
+        envFrom:
+          - configMapRef:
+              name: {{ required "frontend.name is required" .Values.frontend.name }}-config
+{{- end }}
+

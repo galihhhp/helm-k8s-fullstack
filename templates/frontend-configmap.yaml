@@ -1,0 +1,18 @@
+{{- if .Values.frontend.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ required "frontend.name is required" .Values.frontend.name }}-config
+  namespace: {{ required "namespace is required" .Values.namespace }}
+  labels:
+    {{- range $key, $value := .Values.frontend.labels }}
+      {{ $key }}: {{ $value }}
+    {{- end }}
+data:
+    {{- if .Values.frontend.env }}
+    {{- range $key, $value := .Values.frontend.env }}
+      {{ $key }}: {{ printf "%v" $value | quote }}
+    {{- end }}
+    {{- end }}
+{{- end }}
