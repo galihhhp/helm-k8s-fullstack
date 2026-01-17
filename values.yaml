@@ -129,7 +129,7 @@ postgresql:
   image:
     registry: docker.io
     repository: bitnami/postgresql
-    tag: "latest"
+    tag: "17"
   auth:
     postgresPassword: ""
     username: "postgres"
