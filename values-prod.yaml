@@ -1,13 +1,13 @@
 ---
-namespace: "development"
-environment: "development"
+namespace: "production"
+environment: "production"
 
 networkPolicy:
-  enabled: false
+  enabled: true
 
 frontend:
   enabled: true
-  replicaCount: 2
+  replicaCount: 3
   name: "frontend"
   serviceAccountName: "frontend"
   automountServiceAccountToken: false
@@ -20,7 +20,7 @@ frontend:
   image:
     name: "galihhhp/react-frontend"
     tag: "2.0.0"
-    pullPolicy: "Always"
+    pullPolicy: "IfNotPresent"
     containerPort: 80
   service:
     type: ClusterIP
@@ -31,6 +31,8 @@ frontend:
     FEATURE_EDIT_TASK: "true"
     FEATURE_DELETE_TASK: "true"
     VITE_APP_VERSION: "2.0.0"
+    FEATURE_SHOW_TASKS: "true"
+    FEATURE_SHOW_USERS: "false"
   healthCheck:
     enabled: true
     startupProbe:
@@ -53,15 +55,15 @@ frontend:
       failureThreshold: 3
   resources:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "200m"
+      memory: "256Mi"
     limits:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: "1"
+      memory: "1Gi"
 
 backend:
   enabled: true
-  replicaCount: 2
+  replicaCount: 3
   name: "backend"
   serviceAccountName: "backend"
   automountServiceAccountToken: false
@@ -74,14 +76,14 @@ backend:
   image:
     name: "galihhhp/task-services"
     tag: "2.0.0"
-    pullPolicy: "Always"
+    pullPolicy: "IfNotPresent"
     containerPort: 3000
   service:
     type: ClusterIP
     port: 3000
     targetPort: 3000
   env:
-    NODE_ENV: "development"
+    NODE_ENV: "production"
     DB_HOST: "fullstack-app-postgresql"
     DB_PORT: "5432"
     DB_NAME: "postgres"
@@ -117,11 +119,11 @@ backend:
       failureThreshold: 3
   resources:
     requests:
-      cpu: "100m"
-      memory: "128Mi"
+      cpu: "200m"
+      memory: "256Mi"
     limits:
-      cpu: "500m"
-      memory: "512Mi"
+      cpu: "1"
+      memory: "1Gi"
 
 postgresql:
   enabled: true
@@ -144,11 +146,11 @@ postgresql:
           );
     persistence:
       enabled: true
-      size: 10Gi
+      size: 20Gi
     resources:
       requests:
-        cpu: "250m"
-        memory: "256Mi"
-      limits:
         cpu: "500m"
         memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"

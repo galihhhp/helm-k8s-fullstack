@@ -35,65 +35,52 @@ This Helm chart provides a complete deployment solution for a fullstack applicat
 
 This repository focuses on the Kubernetes/Helm deployment infrastructure for an existing fullstack application. The application components (React frontend, task services backend, and PostgreSQL database) are containerized and deployed using this Helm chart.
 
-Recommended repository structure:
+Current repository structure:
 
 ```text
 helm-k8s-fullstack/
   README.md
   Chart.yaml
-  values.yaml              # Default configuration (local/dev)
-  values-dev.yaml          # Development environment
-  values-staging.yaml      # Staging environment
-  values-prod.yaml         # Production environment
+  values-dev.yaml          # Development environment configuration
 
   templates/
-    deployment-frontend.yaml    # Frontend (React) deployment
-    deployment-backend.yaml     # Backend (Task Services) deployment
-    service-frontend.yaml       # Frontend service
-    service-backend.yaml        # Backend service
-    ingress.yaml                # Ingress for frontend/backend
-    httproute.yaml              # Alternative: Gateway API HTTPRoute
-    hpa-frontend.yaml           # HPA for frontend
-    hpa-backend.yaml            # HPA for backend
-    serviceaccount.yaml
-    _helpers.tpl
+    _helpers.tpl           # Template helpers
+    configmap.yaml         # ConfigMap for application configuration
+    deployment.yaml        # Deployment manifest
+    namespace.yaml         # Namespace definition
+    service.yaml           # Service manifest
 
-  charts/                  # Optional: subcharts for dependencies (e.g., PostgreSQL)
-    postgres/              # PostgreSQL subchart (if using Helm dependency)
+  charts/                  # Subcharts directory (currently empty)
 
-  docs/
-    architecture-diagram.png
-    deployment-flow.md
-
-  .github/
-    workflows/
-      helm-lint.yaml
-      helm-release.yaml
+  scripts/
+    cleanup.sh             # Cleanup script
+    setup.sh               # Setup script
 ```
 
 **Key directories:**
 
-- **`values-*.yaml`**: Environment-specific configurations for dev/staging/prod environments
+- **`values-dev.yaml`**: Development environment configuration
 - **`templates/`**: Helm template files that generate Kubernetes manifests
-  - **Frontend & Backend**: Deployed via separate Deployment manifests (not in `charts/`)
-  - **Images**: Pulled from container registry (Docker Hub, GCR, ECR, etc.) - images are not stored in this repo
-- **`charts/`**: Optional subchart dependencies for infrastructure components (e.g., PostgreSQL, Redis) - NOT for your application code
-- **`docs/`**: Architecture diagrams, deployment flows, and operational documentation
-- **`.github/workflows/`**: CI/CD pipelines for linting, testing, and releasing the Helm chart
+  - **`deployment.yaml`**: Kubernetes Deployment manifest
+  - **`service.yaml`**: Kubernetes Service manifest
+  - **`configmap.yaml`**: ConfigMap for application configuration
+  - **`namespace.yaml`**: Namespace definition
+  - **`_helpers.tpl`**: Template helper functions
+- **`charts/`**: Directory for subchart dependencies (currently empty)
+- **`scripts/`**: Utility scripts for setup and cleanup operations
 
 **Important Notes:**
 
 - **Frontend/Backend code**: Your React frontend and backend API code exist in separate repositories or are already containerized
-- **Container images**: Images are built separately and pushed to a container registry, then referenced in `values.yaml` via `image.repository` and `image.tag`
-- **`charts/` directory**: Only for Helm subchart dependencies (like PostgreSQL from Bitnami), NOT for your application services
-- **Deployment**: Frontend and backend are deployed as separate Kubernetes Deployments defined in `templates/`, each pulling their respective container images
+- **Container images**: Images are built separately and pushed to a container registry, then referenced in `values-dev.yaml` via `image.repository` and `image.tag`
+- **`charts/` directory**: Reserved for Helm subchart dependencies (like PostgreSQL from Bitnami), NOT for your application services
+- **Deployment**: Application components are deployed via Kubernetes manifests defined in `templates/`, pulling their respective container images
 
 ## Prerequisites
 
 - Kubernetes cluster (v1.19+)
 - Helm 3.x installed
 - kubectl configured to access your cluster
-- (Optional) Ingress controller or Gateway API controller for external access
 
 ## Installation
 
@@ -110,8 +97,8 @@ helm install my-app . \
   --namespace production \
   --create-namespace \
   --set replicaCount=3 \
-  --set image.repository=my-registry/frontend \
-  --set image.tag=v1.0.0
+  --set frontend.image.name=my-registry/frontend \
+  --set frontend.image.tag=v1.0.0
 ```
 
 ### Using Custom Values File
@@ -125,33 +112,38 @@ helm install my-app . \
 
 ## Configuration
 
-The following table lists the configurable parameters and their default values:
+The chart uses a component-based configuration structure. Each component (frontend, backend) can be configured independently in `values-dev.yaml`.
 
-| Parameter | Description | Default |
+Key configuration parameters for each component:
+
+| Parameter | Description | Example |
 |-----------|-------------|---------|
-| `replicaCount` | Number of replicas | `1` |
-| `image.repository` | Container image repository | `nginx` |
-| `image.tag` | Container image tag | `""` (uses appVersion) |
-| `image.pullPolicy` | Image pull policy | `IfNotPresent` |
-| `service.type` | Kubernetes service type | `ClusterIP` |
-| `service.port` | Service port | `80` |
-| `ingress.enabled` | Enable ingress | `false` |
-| `httpRoute.enabled` | Enable HTTPRoute (Gateway API) | `false` |
-| `autoscaling.enabled` | Enable HPA | `false` |
-| `autoscaling.minReplicas` | Minimum replicas for HPA | `1` |
-| `autoscaling.maxReplicas` | Maximum replicas for HPA | `100` |
-| `autoscaling.targetCPUUtilizationPercentage` | Target CPU utilization | `80` |
+| `component.enabled` | Enable/disable component | `true` |
+| `component.replicaCount` | Number of replicas | `2` |
+| `component.name` | Component name | `"frontend"` |
+| `component.image.name` | Container image repository | `"galihhhp/react-frontend"` |
+| `component.image.tag` | Container image tag | `"2.0.0"` |
+| `component.image.containerPort` | Container port | `80` |
+| `component.service.type` | Kubernetes service type | `ClusterIP` |
+| `component.service.port` | Service port | `80` |
+| `component.service.targetPort` | Target port | `80` |
+| `component.env` | Environment variables | Key-value pairs |
+| `namespace` | Kubernetes namespace | `"development"` |
 
 ## Components
 
 ### Frontend (React)
 
-The React frontend is deployed as a containerized application. Configure the frontend image in `values.yaml`:
+The React frontend is deployed as a containerized application. Configure the frontend image in `values-dev.yaml`:
 
 ```yaml
-image:
-  repository: my-registry/react-frontend
-  tag: "latest"
+frontend:
+  enabled: true
+  name: "frontend"
+  image:
+    name: "my-registry/react-frontend"
+    tag: "latest"
+    containerPort: 80
 ```
 
 ### Task Services (Backend)
@@ -168,7 +160,7 @@ PostgreSQL database should be deployed separately or as a dependency. You may ne
 
 ## Deployment Steps
 
-1. **Review and customize values.yaml** according to your environment
+1. **Review and customize values-dev.yaml** according to your environment
 
 2. **Deploy the chart:**
    ```bash
@@ -186,18 +178,20 @@ PostgreSQL database should be deployed separately or as a dependency. You may ne
    helm status my-app -n production
    ```
 
-5. **Access the application:**
-   - If using Ingress: Access via the configured hostname
-   - If using LoadBalancer: Get the external IP from service
-   - If using ClusterIP: Use port-forward:
-     ```bash
-     kubectl port-forward svc/my-app 8080:80 -n production
-     ```
+5. **Access the application using port-forward:**
+   ```bash
+   kubectl port-forward svc/frontend 8080:80 -n production
+   kubectl port-forward svc/backend 8081:3000 -n production
+   ```
+   
+   Then access:
+   - Frontend: `http://localhost:8080`
+   - Backend API: `http://localhost:8081`
 
 ## Upgrading
 
 ```bash
-helm upgrade my-app . --namespace production -f values.yaml
+helm upgrade my-app . --namespace production -f values-dev.yaml
 ```
 
 ## Rollback
@@ -238,7 +232,7 @@ helm uninstall my-app --namespace production
 
 ## Environment Variables
 
-Configure environment variables for your services through `values.yaml`:
+Configure environment variables for your services through `values-dev.yaml`:
 
 ```yaml
 env:
@@ -265,7 +259,7 @@ kubectl create secret generic postgres-secret \
   --namespace production
 ```
 
-Reference secrets in your deployment via `values.yaml` or directly in templates.
+Reference secrets in your deployment via `values-dev.yaml` or directly in templates.
 
 ## Monitoring and Health Checks
 
@@ -283,26 +277,15 @@ readinessProbe:
     port: http
 ```
 
-Customize these in `values.yaml` based on your application's health check endpoints.
+Customize these in `values-dev.yaml` based on your application's health check endpoints.
 
 ## Scaling
 
 ### Manual Scaling
 
 ```bash
-kubectl scale deployment my-app --replicas=5 -n production
-```
-
-### Automatic Scaling (HPA)
-
-Enable Horizontal Pod Autoscaler in `values.yaml`:
-
-```yaml
-autoscaling:
-  enabled: true
-  minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
+kubectl scale deployment frontend --replicas=5 -n production
+kubectl scale deployment backend --replicas=3 -n production
 ```
 
 ## Troubleshooting
@@ -319,21 +302,15 @@ kubectl logs <pod-name> -n production
 
 ```bash
 kubectl get svc -n production
-kubectl describe svc my-app -n production
-```
-
-### Check Ingress
-
-```bash
-kubectl get ingress -n production
-kubectl describe ingress my-app -n production
+kubectl describe svc frontend -n production
+kubectl describe svc backend -n production
 ```
 
 ### Common Issues
 
 1. **Pods not starting**: Check image pull secrets and image availability
 2. **Service not accessible**: Verify service type and selector labels
-3. **Ingress not working**: Ensure ingress controller is installed and configured
+3. **Port-forward not working**: Ensure the service is running and the port mapping is correct
 4. **Database connection issues**: Verify PostgreSQL is running and connection strings are correct
 
 ## Contributing
@@ -346,7 +323,7 @@ kubectl describe ingress my-app -n production
 
 ## License
 
-[Specify your license here]
+[MIT](https://opensource.org/licenses/MIT)
 
 ## Support
 
