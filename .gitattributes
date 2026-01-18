@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+*.yaml linguist-language=Helm
+*.yml linguist-language=Helm
+*.tpl linguist-language=Helm
+
+*.sh linguist-language=Shell
+*.md linguist-language=Markdown
+
+Chart.yaml linguist-language=Helm
+Chart.lock linguist-language=Helm
+values*.yaml linguist-language=Helm
