@@ -8,7 +8,7 @@ This Helm chart provides a complete deployment solution for a fullstack applicat
 
 - **React Frontend**: Modern web application built with React
 - **Task Services**: Backend API services for task management
-- **PostgreSQL**: Relational database for data persistence
+- **PostgreSQL**: Relational database (Bitnami subchart) with automatic schema initialization
 
 ## Architecture
 
@@ -16,65 +16,54 @@ This Helm chart provides a complete deployment solution for a fullstack applicat
 ┌─────────────────┐
 │   React App     │
 │   (Frontend)    │
+│   Port: 80      │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
 │  Task Services  │
-│   (Backend API) │
+│   (Backend)     │
+│   Port: 3000    │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
 │   PostgreSQL    │
-│    (Database)   │
+│   (Bitnami)     │
+│   Port: 5432    │
 └─────────────────┘
 ```
 
 ## Repository Structure
 
-This repository focuses on the Kubernetes/Helm deployment infrastructure for an existing fullstack application. The application components (React frontend, task services backend, and PostgreSQL database) are containerized and deployed using this Helm chart.
-
-Current repository structure:
-
 ```text
 helm-k8s-fullstack/
-  README.md
-  Chart.yaml
-  values-dev.yaml          # Development environment configuration
-
-  templates/
-    _helpers.tpl           # Template helpers
-    configmap.yaml         # ConfigMap for application configuration
-    deployment.yaml        # Deployment manifest
-    namespace.yaml         # Namespace definition
-    service.yaml           # Service manifest
-
-  charts/                  # Subcharts directory (currently empty)
-
-  scripts/
-    cleanup.sh             # Cleanup script
-    setup.sh               # Setup script
+├── Chart.yaml                # Chart metadata and dependencies
+├── Chart.lock                # Locked dependency versions
+├── values.yaml               # Default configuration values
+├── values-dev.yaml           # Development environment configuration
+├── values-prod.yaml          # Production environment configuration
+│
+├── charts/
+│   └── postgresql-18.2.0.tgz # Bitnami PostgreSQL subchart
+│
+├── templates/
+│   ├── _helpers.tpl          # Template helpers
+│   ├── _deployment.tpl       # Reusable deployment template
+│   ├── _service.tpl          # Reusable service template
+│   ├── _configmap.tpl        # Reusable configmap template
+│   ├── configmap.yaml        # ConfigMap manifest
+│   ├── deployment.yaml       # Deployment manifest
+│   ├── service.yaml          # Service manifest
+│   ├── namespace.yaml        # Namespace definition
+│   ├── networkpolicy.yaml    # Network policies for security
+│   └── serviceaccount.yaml   # Service accounts
+│
+└── scripts/
+    ├── setup.sh              # Deploy/upgrade the application
+    ├── cleanup.sh            # Uninstall the application
+    └── access.sh             # Port-forward for local access
 ```
-
-**Key directories:**
-
-- **`values-dev.yaml`**: Development environment configuration
-- **`templates/`**: Helm template files that generate Kubernetes manifests
-  - **`deployment.yaml`**: Kubernetes Deployment manifest
-  - **`service.yaml`**: Kubernetes Service manifest
-  - **`configmap.yaml`**: ConfigMap for application configuration
-  - **`namespace.yaml`**: Namespace definition
-  - **`_helpers.tpl`**: Template helper functions
-- **`charts/`**: Directory for subchart dependencies (currently empty)
-- **`scripts/`**: Utility scripts for setup and cleanup operations
-
-**Important Notes:**
-
-- **Frontend/Backend code**: Your React frontend and backend API code exist in separate repositories or are already containerized
-- **Container images**: Images are built separately and pushed to a container registry, then referenced in `values-dev.yaml` via `image.repository` and `image.tag`
-- **`charts/` directory**: Reserved for Helm subchart dependencies (like PostgreSQL from Bitnami), NOT for your application services
-- **Deployment**: Application components are deployed via Kubernetes manifests defined in `templates/`, pulling their respective container images
 
 ## Prerequisites
 
@@ -82,210 +71,273 @@ helm-k8s-fullstack/
 - Helm 3.x installed
 - kubectl configured to access your cluster
 
-## Installation
+## Quick Start
 
-### Quick Start
+### Deploy to Development
 
 ```bash
-helm install my-app . --namespace production --create-namespace
+./scripts/setup.sh dev
 ```
 
-### Custom Installation
+### Deploy to Production
 
 ```bash
-helm install my-app . \
-  --namespace production \
-  --create-namespace \
-  --set replicaCount=3 \
-  --set frontend.image.name=my-registry/frontend \
-  --set frontend.image.tag=v1.0.0
+./scripts/setup.sh prod
 ```
 
-### Using Custom Values File
+The setup script will:
+1. Prompt for PostgreSQL password (or use `DB_PASSWORD` env var)
+2. Update Helm dependencies
+3. Install/upgrade the release
+4. Display deployment status
+
+### Access the Application
 
 ```bash
-helm install my-app . \
-  --namespace production \
-  --create-namespace \
-  -f my-custom-values.yaml
+./scripts/access.sh open dev
+```
+
+This opens port-forwards:
+- Frontend: `http://localhost:8000`
+- Backend API: `http://localhost:3000`
+
+To close port-forwards:
+
+```bash
+./scripts/access.sh close
+```
+
+### Cleanup
+
+```bash
+./scripts/cleanup.sh dev
 ```
 
 ## Configuration
 
-The chart uses a component-based configuration structure. Each component (frontend, backend) can be configured independently in `values-dev.yaml`.
+### Environment Values Files
 
-Key configuration parameters for each component:
+| File | Environment | Namespace | Network Policy |
+|------|-------------|-----------|----------------|
+| `values.yaml` | Default | `default` | Disabled |
+| `values-dev.yaml` | Development | `development` | Disabled |
+| `values-prod.yaml` | Production | `production` | Enabled |
 
-| Parameter | Description | Example |
+### Component Configuration
+
+Each component (frontend, backend) supports the following configuration:
+
+| Parameter | Description | Default |
 |-----------|-------------|---------|
 | `component.enabled` | Enable/disable component | `true` |
-| `component.replicaCount` | Number of replicas | `2` |
-| `component.name` | Component name | `"frontend"` |
-| `component.image.name` | Container image repository | `"galihhhp/react-frontend"` |
-| `component.image.tag` | Container image tag | `"2.0.0"` |
-| `component.image.containerPort` | Container port | `80` |
-| `component.service.type` | Kubernetes service type | `ClusterIP` |
-| `component.service.port` | Service port | `80` |
-| `component.service.targetPort` | Target port | `80` |
-| `component.env` | Environment variables | Key-value pairs |
-| `namespace` | Kubernetes namespace | `"development"` |
+| `component.replicaCount` | Number of replicas | `2` (dev), `3` (prod) |
+| `component.name` | Component name | `"frontend"` / `"backend"` |
+| `component.serviceAccountName` | Service account name | Component name |
+| `component.image.name` | Container image | `"galihhhp/react-frontend"` |
+| `component.image.tag` | Image tag | `"2.0.0"` |
+| `component.image.pullPolicy` | Pull policy | `"Always"` (dev), `"IfNotPresent"` (prod) |
+| `component.image.containerPort` | Container port | `80` / `3000` |
+| `component.service.type` | Service type | `ClusterIP` |
+| `component.service.port` | Service port | `80` / `3000` |
+| `component.env` | Environment variables | See values files |
+| `component.secrets` | Secret references | Backend DB password |
+| `component.healthCheck` | Health check configuration | Enabled with probes |
+| `component.resources` | CPU/Memory requests and limits | See values files |
+
+### Feature Flags
+
+Configure feature flags via environment variables:
+
+**Frontend:**
+```yaml
+env:
+  API_URL: "http://localhost:3000"
+  FEATURE_EDIT_TASK: "true"
+  FEATURE_DELETE_TASK: "true"
+  FEATURE_SHOW_TASKS: "true"
+  FEATURE_SHOW_USERS: "false"
+  VITE_APP_VERSION: "2.0.0"
+```
+
+**Backend:**
+```yaml
+env:
+  NODE_ENV: "production"
+  DB_HOST: "fullstack-app-postgresql"
+  DB_PORT: "5432"
+  DB_NAME: "postgres"
+  DB_USER: "postgres"
+  DB_COLUMN_ID: "id"
+  DB_COLUMN_TASK: "task"
+  FEATURE_EDIT_TASK: "true"
+  FEATURE_DELETE_TASK: "true"
+  FEATURE_REDIS_CACHE: "false"
+```
+
+### Health Checks
+
+All components include configurable health probes:
+
+```yaml
+healthCheck:
+  enabled: true
+  startupProbe:
+    path: "/"
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  livenessProbe:
+    path: "/"
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    path: "/"
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+```
+
+### Resource Limits
+
+**Development:**
+```yaml
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+```
+
+**Production:**
+```yaml
+resources:
+  requests:
+    cpu: "200m"
+    memory: "256Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+```
 
 ## Components
 
 ### Frontend (React)
 
-The React frontend is deployed as a containerized application. Configure the frontend image in `values-dev.yaml`:
+The React frontend is deployed with:
+- Configurable replica count
+- ClusterIP service on port 80
+- Feature flags for UI features
+- Health checks for reliability
 
+### Backend (Task Services)
+
+The backend API includes:
+- Database connection to PostgreSQL
+- Secret-based password management
+- Feature flags for API features
+- Health checks for reliability
+
+### PostgreSQL (Bitnami Subchart)
+
+PostgreSQL is deployed as a Bitnami subchart dependency with:
+- Automatic database initialization via `init.sql`
+- Persistent storage (10Gi dev, 20Gi prod)
+- Configurable resources
+
+**Database Schema (auto-created):**
+```sql
+CREATE TABLE IF NOT EXISTS main_table (
+    id SERIAL PRIMARY KEY,
+    task VARCHAR(255) NOT NULL
+);
+```
+
+## Network Policies
+
+Network policies are enabled in production (`values-prod.yaml`) to restrict traffic:
+
+**Frontend Policy:**
+- Ingress: Allow HTTP (port 80) from any namespace
+- Egress: Allow only to backend (port 3000) and DNS
+
+**Backend Policy:**
+- Ingress: Allow only from frontend (port 3000)
+- Egress: Allow only to PostgreSQL (port 5432) and DNS
+
+Enable/disable via:
 ```yaml
-frontend:
-  enabled: true
-  name: "frontend"
-  image:
-    name: "my-registry/react-frontend"
-    tag: "latest"
-    containerPort: 80
+networkPolicy:
+  enabled: true  # or false
 ```
 
-### Task Services (Backend)
+## Manual Installation
 
-The task services backend API handles business logic and communicates with PostgreSQL. Ensure the backend service is configured with proper database connection strings via environment variables or secrets.
+If you prefer not to use the scripts:
 
-### PostgreSQL
-
-PostgreSQL database should be deployed separately or as a dependency. You may need to:
-
-1. Add PostgreSQL as a subchart dependency
-2. Configure database connection in task services
-3. Set up persistent volumes for data storage
-
-## Deployment Steps
-
-1. **Review and customize values-dev.yaml** according to your environment
-
-2. **Deploy the chart:**
-   ```bash
-   helm install my-app . --namespace production --create-namespace
-   ```
-
-3. **Verify deployment:**
-   ```bash
-   kubectl get pods -n production
-   kubectl get svc -n production
-   ```
-
-4. **Check application status:**
-   ```bash
-   helm status my-app -n production
-   ```
-
-5. **Access the application using port-forward:**
-   ```bash
-   kubectl port-forward svc/frontend 8080:80 -n production
-   kubectl port-forward svc/backend 8081:3000 -n production
-   ```
-   
-   Then access:
-   - Frontend: `http://localhost:8080`
-   - Backend API: `http://localhost:8081`
-
-## Upgrading
+### Install
 
 ```bash
-helm upgrade my-app . --namespace production -f values-dev.yaml
+helm dependency update
+
+helm upgrade --install fullstack-app . \
+  --namespace development \
+  --create-namespace \
+  -f values-dev.yaml \
+  --set-string postgresql.auth.postgresPassword="your-password" \
+  --set-string postgresql.auth.password="your-password"
 ```
 
-## Rollback
+### Upgrade
 
 ```bash
-helm rollback my-app --namespace production
+helm upgrade fullstack-app . \
+  --namespace development \
+  -f values-dev.yaml \
+  --set-string postgresql.auth.postgresPassword="your-password" \
+  --set-string postgresql.auth.password="your-password"
 ```
 
-## Uninstallation
+### Uninstall
 
 ```bash
-helm uninstall my-app --namespace production
+helm uninstall fullstack-app --namespace development
+kubectl delete namespace development  # Optional
 ```
 
 ## Development
 
-### Local Development Setup
-
-1. **Install dependencies:**
-   ```bash
-   helm dependency update
-   ```
-
-2. **Lint the chart:**
-   ```bash
-   helm lint .
-   ```
-
-3. **Dry run to validate:**
-   ```bash
-   helm install my-app . --dry-run --debug --namespace production
-   ```
-
-4. **Template rendering test:**
-   ```bash
-   helm template my-app . --debug
-   ```
-
-## Environment Variables
-
-Configure environment variables for your services through `values-dev.yaml`:
-
-```yaml
-env:
-  - name: DATABASE_URL
-    valueFrom:
-      secretKeyRef:
-        name: postgres-secret
-        key: connection-string
-  - name: API_KEY
-    valueFrom:
-      secretKeyRef:
-        name: api-secrets
-        key: api-key
-```
-
-## Secrets Management
-
-Store sensitive data in Kubernetes secrets:
+### Lint the Chart
 
 ```bash
-kubectl create secret generic postgres-secret \
-  --from-literal=username=admin \
-  --from-literal=password=secret \
-  --namespace production
+helm lint .
 ```
 
-Reference secrets in your deployment via `values-dev.yaml` or directly in templates.
-
-## Monitoring and Health Checks
-
-The chart includes liveness and readiness probes:
-
-```yaml
-livenessProbe:
-  httpGet:
-    path: /
-    port: http
-
-readinessProbe:
-  httpGet:
-    path: /
-    port: http
-```
-
-Customize these in `values-dev.yaml` based on your application's health check endpoints.
-
-## Scaling
-
-### Manual Scaling
+### Dry Run
 
 ```bash
-kubectl scale deployment frontend --replicas=5 -n production
-kubectl scale deployment backend --replicas=3 -n production
+helm install fullstack-app . --dry-run --debug \
+  -f values-dev.yaml \
+  --set-string postgresql.auth.postgresPassword="test"
+```
+
+### Template Rendering
+
+```bash
+helm template fullstack-app . \
+  -f values-dev.yaml \
+  --set-string postgresql.auth.postgresPassword="test"
+```
+
+### Update Dependencies
+
+```bash
+helm dependency update
 ```
 
 ## Troubleshooting
@@ -293,25 +345,65 @@ kubectl scale deployment backend --replicas=3 -n production
 ### Check Pod Status
 
 ```bash
-kubectl get pods -n production
-kubectl describe pod <pod-name> -n production
-kubectl logs <pod-name> -n production
+kubectl get pods -n development
+kubectl describe pod <pod-name> -n development
+kubectl logs <pod-name> -n development
 ```
 
-### Check Service
+### Check Services
 
 ```bash
-kubectl get svc -n production
-kubectl describe svc frontend -n production
-kubectl describe svc backend -n production
+kubectl get svc -n development
+kubectl describe svc frontend -n development
+kubectl describe svc backend -n development
+```
+
+### Check PostgreSQL
+
+```bash
+kubectl get pods -n development -l app.kubernetes.io/name=postgresql
+kubectl logs -n development -l app.kubernetes.io/name=postgresql
 ```
 
 ### Common Issues
 
-1. **Pods not starting**: Check image pull secrets and image availability
-2. **Service not accessible**: Verify service type and selector labels
-3. **Port-forward not working**: Ensure the service is running and the port mapping is correct
-4. **Database connection issues**: Verify PostgreSQL is running and connection strings are correct
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| Pods not starting | Image pull error | Check image name/tag and registry access |
+| Database connection failed | Wrong credentials | Verify `DB_PASSWORD` matches PostgreSQL password |
+| Service not accessible | Wrong selector | Check labels match between deployment and service |
+| Port-forward not working | Service not ready | Wait for pods to be in `Running` state |
+| PostgreSQL CrashLoopBackOff | Resource limits | Increase memory limits for PostgreSQL |
+
+### View Helm Release
+
+```bash
+helm status fullstack-app -n development
+helm history fullstack-app -n development
+```
+
+### Rollback
+
+```bash
+helm rollback fullstack-app 1 -n development
+```
+
+## Scaling
+
+### Manual Scaling
+
+```bash
+kubectl scale deployment frontend --replicas=5 -n development
+kubectl scale deployment backend --replicas=3 -n development
+```
+
+### Via Helm Values
+
+Update `replicaCount` in values file and upgrade:
+
+```bash
+./scripts/setup.sh dev
+```
 
 ## Contributing
 
@@ -327,4 +419,4 @@ kubectl describe svc backend -n production
 
 ## Support
 
-For issues and questions, please open an issue in the repository or contact the maintainers.
+For issues and questions, please open an issue in the repository.
